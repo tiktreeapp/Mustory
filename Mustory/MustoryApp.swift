@@ -23,6 +23,13 @@ struct MustoryApp: App {
                 }
             }
             .animation(.default, value: musicManager.authorizationStatus)
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                // Refresh auth status when app returns to foreground
+                // This handles the case where user revokes access in system Settings
+                Task {
+                    await musicManager.refreshAuthorizationStatus()
+                }
+            }
         }
     }
 }

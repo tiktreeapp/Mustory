@@ -9,14 +9,14 @@ struct PlaylistListView: View {
             VStack(spacing: 30) {
                 // Favorites Section (Songs)
                 SectionView(title: "Favorites", items: musicManager.favoriteSongs) { song in
-                    MusicItemCell(
-                        title: song.title,
-                        subtitle: song.albumTitle ?? "",
-                        artwork: song.artwork
-                    )
-                    .onTapGesture {
-                        musicManager.play(song)
+                    NavigationLink(destination: SongDetailView(song: song, songQueue: musicManager.favoriteSongs)) {
+                        MusicItemCell(
+                            title: song.title,
+                            subtitle: song.albumTitle ?? "",
+                            artwork: song.artwork
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
                 
                 // My Playlists Section

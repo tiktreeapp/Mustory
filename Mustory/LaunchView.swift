@@ -35,7 +35,7 @@ struct LaunchView: View {
                         .foregroundColor(.white)
                         .tracking(2)
                     
-                    Text("Capture your every music story")
+                    Text("Know the Story. Feel the Music.")
                         .font(.system(size: 18, weight: .medium, design: .rounded))
                         .foregroundColor(.gray)
                 }

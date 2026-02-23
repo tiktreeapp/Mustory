@@ -3,6 +3,7 @@ import MusicKit
 
 struct SongDetailView: View {
     let song: MusicKit.Song
+    var songQueue: [MusicKit.Song] = []
     @State private var musicManager = MusicManager.shared
     @State private var aiStory: StepAIManager.SongInfo = StepAIManager.SongInfo()
     @State private var isLoadingAI = true
@@ -81,6 +82,11 @@ struct SongDetailView: View {
                     
                     // 5. AI Sections
                     VStack(alignment: .leading, spacing: 25) {
+                        // Scene Mood - literary atmosphere description
+                        if !aiStory.sceneMood.isEmpty || isLoadingAI {
+                            SceneMoodSection(content: aiStory.sceneMood, isLoading: isLoadingAI)
+                        }
+                        
                         StorySection(title: "Background", content: aiStory.background, isLoading: isLoadingAI)
                         StorySection(title: "Written for", content: aiStory.writtenFor, isLoading: isLoadingAI)
                         StorySection(title: "What Happening", content: aiStory.whatHappening, isLoading: isLoadingAI)
@@ -109,7 +115,11 @@ struct SongDetailView: View {
             .ignoresSafeArea()
         }
         .task {
-            musicManager.play(song)
+            if songQueue.isEmpty {
+                musicManager.play(song)
+            } else {
+                musicManager.playSongInContext(song: song, queue: songQueue)
+            }
             await fetchAIStory()
         }
     }
@@ -179,12 +189,48 @@ struct StorySection: View {
                     .padding(.vertical)
             } else {
                 Text(content)
-                    .font(.body)
+                    .font(.system(size: 17))
                     .foregroundColor(.white.opacity(0.9))
-                    .lineSpacing(6)
+                    .lineSpacing(7)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 }
+
+struct SceneMoodSection: View {
+    let content: String
+    let isLoading: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16))
+                    .foregroundColor(.yellow)
+                Text("Scene")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            
+            if isLoading {
+                ProgressView()
+                    .tint(.white)
+                    .padding(.vertical)
+            } else {
+                Text(content)
+                    .font(.system(size: 17))
+                    .italic()
+                    .foregroundColor(.white.opacity(0.85))
+                    .lineSpacing(7)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color.white.opacity(0.08))
+                    .cornerRadius(12)
+            }
+        }
+    }
+}
+

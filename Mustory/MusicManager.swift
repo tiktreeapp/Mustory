@@ -70,6 +70,13 @@ class MusicManager {
         }
     }
     
+    // Refresh authorization status (e.g. when opening Settings)
+    @MainActor
+    func refreshAuthorizationStatus() async {
+        let current = MusicAuthorization.currentStatus
+        self.authorizationStatus = current
+    }
+    
     // 私有辅助：超时机制
     private func withDefaultTimeout<T>(_ operation: @autoclosure @escaping () async -> T, seconds: TimeInterval) async -> T? {
         await withTaskGroup(of: T?.self) { group in
@@ -213,21 +220,36 @@ class MusicManager {
         let request = MusicLibraryRequest<MusicKit.Playlist>()
         do {
             let response = try await request.response()
-            // Match localized names for "Favorite Songs"
-            if let favoritesPlaylist = response.items.first(where: { 
+            // Try to match system "Favorites" playlist by various localized names
+            let favoritesPlaylist = response.items.first(where: {
                 let name = $0.name.lowercased()
-                return name.contains("favorites") || 
-                       name.contains("favorite songs") || 
-                       name.contains("收藏") || 
-                       name.contains("喜爱") ||
-                       name.contains("喜爱歌曲")
-            }) {
-                let detailedPlaylist = try await favoritesPlaylist.with([.tracks])
+                return name == "favorites" ||
+                       name == "favorite songs" ||
+                       name == "favourites" ||
+                       name == "favourite songs" ||
+                       name == "收藏" ||
+                       name == "喜爱的歌曲" ||
+                       name == "喜爱歌曲" ||
+                       name == "お気に入り" ||
+                       name == "즐겨찾기"
+            })
+            
+            if let playlist = favoritesPlaylist {
+                let detailedPlaylist = try await playlist.with([.tracks])
                 await MainActor.run {
                     self.favoriteSongs = detailedPlaylist.tracks?.compactMap { track in
                         if case .song(let song) = track { return song }
                         return nil
                     } ?? []
+                }
+            } else {
+                // Fallback: fetch recently added songs from library as "favorites"
+                var songRequest = MusicLibraryRequest<MusicKit.Song>()
+                songRequest.limit = 50
+                songRequest.sort(by: \.libraryAddedDate, ascending: false)
+                let songResponse = try await songRequest.response()
+                await MainActor.run {
+                    self.favoriteSongs = Array(songResponse.items)
                 }
             }
         } catch {
@@ -243,6 +265,18 @@ class MusicManager {
                 try await musicPlayer.play()
             } catch {
                 print("Playback failed: \(error)")
+            }
+        }
+    }
+    
+    /// Play a song within a list context so next/previous buttons work through the queue
+    func playSongInContext(song: MusicKit.Song, queue: [MusicKit.Song]) {
+        Task {
+            do {
+                musicPlayer.queue = MusicPlayer.Queue(for: queue, startingAt: song)
+                try await musicPlayer.play()
+            } catch {
+                print("Playback in context failed: \(error)")
             }
         }
     }
@@ -285,3 +319,4 @@ class MusicManager {
         }
     }
 }
+

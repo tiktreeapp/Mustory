@@ -9,7 +9,7 @@ struct RecentView: View {
             VStack(spacing: 30) {
                 // Recently Played Songs Section
                 SectionView(title: "Songs", items: musicManager.recentSongs) { song in
-                    NavigationLink(destination: SongDetailView(song: song)) {
+                    NavigationLink(destination: SongDetailView(song: song, songQueue: musicManager.recentSongs)) {
                         MusicItemCell(
                             title: song.title,
                             subtitle: song.albumTitle ?? "",
