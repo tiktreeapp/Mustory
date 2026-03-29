@@ -24,23 +24,70 @@ class StepAIManager {
         return "English"
     }
     
+    private var currentContext: String {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        let month = Calendar.current.component(.month, from: now)
+        
+        let season: String
+        switch month {
+        case 3...5: season = "Spring（春季）"
+        case 6...8: season = "Summer（夏季）"
+        case 9...11: season = "Autumn（秋季）"
+        default: season = "Winter（冬季）"
+        }
+        
+        let timeOfDay: String
+        switch hour {
+        case 5..<11: timeOfDay = "Morning（上午）"
+        case 11..<14: timeOfDay = "Noon/Afternoon（中午/午后）"
+        case 14..<18: timeOfDay = "Late Afternoon（傍晚）"
+        case 18..<22: timeOfDay = "Evening（晚上）"
+        default: timeOfDay = "Late Night（深夜）"
+        }
+        
+        return "当前环境上下文：现在是\(season)，时间段是\(timeOfDay)。"
+    }
+    
     func fetchSongStory(songName: String, artistName: String) async -> SongInfo {
         let language = userLanguage
+        let cacheKey = "SongAI_Cache_\(songName)_\(artistName)"
+        
+        // 尝试从本地读取缓存
+        if let cacheData = UserDefaults.standard.data(forKey: cacheKey),
+           let cachedInfo = try? JSONDecoder().decode(SongInfo.self, from: cacheData) {
+            print("Using cached AI story for \(songName)")
+            return cachedInfo
+        }
+        
+        let context = currentContext
         
         let prompt = """
-        你是一位精通世界各种音乐的超级大师，拥有极其丰富的音乐知识和文学素养。你了解各种音乐、歌曲、歌手相关的各类信息，擅长用文艺而深刻的语言来解读音乐。
+        你是一位精通世界各种音乐的超级大师，拥有极其丰富的音乐知识和文学素养。
         
-        根据歌名《\(songName)》、演唱者\(artistName)信息，请用\(language)语言详细告诉我这首歌的：
+        根据歌名《\(songName)》、演唱者\(artistName)信息，请用\(language)语言详细告诉我这首歌的解析。
         
-        1. Background（创作背景）：深入挖掘这首歌的创作背景，包括创作的年代背景、音乐风格的演变、制作人和编曲信息等。请写3-5句话，有深度有细节。
+        特别注意：当前季节时间上下文是 \(context) 
+        在输出第 4 点 "Scene mood" 时，请务必要将其内化为背景要素，而不要每次都用时间词语作为开头。
         
-        2. Written for（为谁而写/创作目的）：详细分析这首歌是写给谁的，创作的灵感来源是什么，歌词想要传达怎样的情感和意义。请写3-5句话，有情感有洞察。
+        1. Background（创作背景）：包括创作年代、风格演变、制作细节等。写3-5句话，深入专业。
         
-        3. What happening（背后的故事/当时发生了什么）：讲述这首歌创作时艺术家的人生经历、音乐生涯中的重要时刻，或歌曲发布后产生的文化影响。请写3-5句话，有故事有深意。
+        2. Written for（为谁而写）：灵感来源、传达的情感。写3-5句话，要有洞察力。
         
-        4. Scene mood（场景化描述）：用文艺的笔触，描绘一个最适合聆听这首歌的生活场景。比如在某个时刻、某种天气、某种心情下，这首歌会成为最好的陪伴。请写2-3句话，有画面感，要文艺。
+        3. What happening（背后的故事）：艺术家的人生经历或重要时刻。写3-5句话，有故事感。
         
-        请严格按照 JSON 格式返回，不要包含任何其他文字。格式如下：
+        4. Scene mood（场景化描述）：你现在是一位擅长描写生活瞬间的文学作家。
+        写一段非常具有画面感、安静的生活瞬间，传达这首歌最适合的现实心境。
+        
+        要求：
+        - 必须合并成一段连贯的话（2-3句即可），自然过渡。
+        - ⚠️极度重要：句式必须每次随机变化！绝对不要每次都以时间作为开头（比如“在十一月的清晨里”、“某个深夜”等）。
+        - ⚠️绝对不要在回答中出现“第一部分”、“第二部分”、“场景化描述”等结构性字眼。
+        - 严禁出现“也许你”“此刻你”“听歌”“耳机”“音乐”等提示用户行为的词汇。
+        - 从随意的细节切入（可能是光影的变化、微风的温度、咖啡机发出的声响或是远处的车流），让 \(context) 的时间要素自然融入其中，接着引出这首歌适合的内心情绪。
+        - 文风自然、安静、有很强的电影长镜头感，不要解释，不要总结。
+        
+        请严格按照 JSON 格式返回：
         {
           "background": "...",
           "writtenFor": "...",
@@ -57,7 +104,7 @@ class StepAIManager {
         let body: [String: Any] = [
             "model": "step-1-8k",
             "messages": [
-                ["role": "system", "content": "You are a world-class music expert and literary writer. You provide deep, insightful, and poetic analysis of music. Always respond in \(language)."],
+                ["role": "system", "content": "You are a world-class music expert and literary writer. Always respond in \(language)."],
                 ["role": "user", "content": prompt]
             ],
             "response_format": ["type": "json_object"]
@@ -72,7 +119,14 @@ class StepAIManager {
                let message = choices.first?["message"] as? [String: Any],
                let content = message["content"] as? String,
                let contentData = content.data(using: .utf8) {
-                return try JSONDecoder().decode(SongInfo.self, from: contentData)
+                let info = try JSONDecoder().decode(SongInfo.self, from: contentData)
+                
+                // 存入缓存
+                if let encoded = try? JSONEncoder().encode(info) {
+                    UserDefaults.standard.set(encoded, forKey: cacheKey)
+                }
+                
+                return info
             }
         } catch {
             print("Step AI Error: \(error)")

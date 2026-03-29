@@ -6,31 +6,43 @@ struct PlaylistListView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 30) {
-                // Favorites Section (Songs)
-                SectionView(title: "Favorites", items: musicManager.favoriteSongs) { song in
-                    NavigationLink(destination: SongDetailView(song: song, songQueue: musicManager.favoriteSongs)) {
-                        MusicItemCell(
-                            title: song.title,
-                            subtitle: song.albumTitle ?? "",
-                            artwork: song.artwork
-                        )
+            VStack(alignment: .leading, spacing: 20) {
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 16),
+                    GridItem(.flexible(), spacing: 16)
+                ], spacing: 20) {
+                    ForEach(musicManager.libraryPlaylists, id: \.id) { playlist in
+                        VStack(alignment: .leading, spacing: 8) {
+                            NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
+                                if let artwork = playlist.artwork {
+                                    ArtworkImage(artwork, width: 170, height: 170)
+                                        .cornerRadius(12)
+                                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 170, height: 170)
+                                        .overlay(Image(systemName: "music.note").foregroundColor(.gray))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(playlist.name)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .lineLimit(1)
+                                    .foregroundColor(.primary)
+                                
+                                Text(playlist.curatorName ?? "My Playlist")
+                                    .font(.system(size: 13))
+                                    .lineLimit(1)
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(width: 170, alignment: .leading)
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
-                
-                // My Playlists Section
-                // Here we simplify by showing all playlists in one section.
-                SectionView(title: "All Playlists", items: musicManager.libraryPlaylists) { playlist in
-                    NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
-                        MusicItemCell(
-                            title: playlist.name,
-                            subtitle: playlist.curatorName ?? "My Playlist",
-                            artwork: playlist.artwork
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
+                .padding(.horizontal, 16)
                 
                 Spacer(minLength: 120)
             }

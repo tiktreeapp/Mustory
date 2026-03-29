@@ -217,7 +217,7 @@ struct SettingsView: View {
     }
     
     private func shareMustory() {
-        let shareText = "Know the Story. Feel the Music. by Mustory https://apps.apple.com/app/id6759556508"
+        let shareText = "Know the story, Feel the Music by Mustory https://apps.apple.com/app/mustory-play-favorite-music/id6759556508"
         let activityVC = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootVC = windowScene.windows.first?.rootViewController {

@@ -3,44 +3,109 @@ import MusicKit
 
 struct RecentView: View {
     @State private var musicManager = MusicManager.shared
+    @State private var selectedSong: MusicKit.Song? // New state for sheet
     
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
                 // Recently Played Songs Section
                 SectionView(title: "Songs", items: musicManager.recentSongs) { song in
-                    NavigationLink(destination: SongDetailView(song: song, songQueue: musicManager.recentSongs)) {
-                        MusicItemCell(
-                            title: song.title,
-                            subtitle: song.albumTitle ?? "",
-                            artwork: song.artwork
-                        )
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            selectedSong = song
+                        } label: {
+                            if let artwork = song.artwork {
+                                ArtworkImage(artwork, width: 140, height: 140)
+                                    .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
+                            } else {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 140, height: 140)
+                                    .overlay(Image(systemName: "music.note").foregroundColor(.gray))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(song.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .lineLimit(1)
+                                .foregroundColor(.primary)
+                            
+                            Text(song.artistName)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 140, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
                 }
                 
                 // Recently Played Albums Section
                 SectionView(title: "Albums", items: musicManager.recentAlbums) { album in
-                    NavigationLink(destination: AlbumDetailView(album: album)) {
-                        MusicItemCell(
-                            title: album.title,
-                            subtitle: album.artistName,
-                            artwork: album.artwork
-                        )
+                    VStack(alignment: .leading, spacing: 8) {
+                        NavigationLink(destination: AlbumDetailView(album: album)) {
+                            if let artwork = album.artwork {
+                                ArtworkImage(artwork, width: 140, height: 140)
+                                    .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
+                            } else {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 140, height: 140)
+                                    .overlay(Image(systemName: "music.note").foregroundColor(.gray))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(album.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .lineLimit(1)
+                                .foregroundColor(.primary)
+                            
+                            Text(album.artistName)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 140, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
                 }
                 
-                // Recently Played Playlists Section
-                SectionView(title: "Playlists", items: musicManager.recentPlaylists) { playlist in
-                    NavigationLink(destination: PlaylistDetailView(playlist: playlist)) {
-                        MusicItemCell(
-                            title: playlist.name,
-                            subtitle: playlist.curatorName ?? "",
-                            artwork: playlist.artwork
-                        )
+                // Favorites Section (Songs) moved from Playlist
+                SectionView(title: "Favorites", items: musicManager.favoriteSongs) { song in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            selectedSong = song
+                        } label: {
+                            if let artwork = song.artwork {
+                                ArtworkImage(artwork, width: 140, height: 140)
+                                    .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 3)
+                            } else {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(width: 140, height: 140)
+                                    .overlay(Image(systemName: "music.note").foregroundColor(.gray))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(song.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .lineLimit(1)
+                                .foregroundColor(.primary)
+                            
+                            Text(song.artistName)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                                .foregroundColor(.gray)
+                        }
+                        .frame(width: 140, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
                 }
                 
                 Spacer(minLength: 120) // Space for bottom player bar
@@ -49,6 +114,11 @@ struct RecentView: View {
         }
         .refreshable {
             await musicManager.fetchAllData()
+        }
+        .sheet(item: $selectedSong) { song in
+            let queue = musicManager.favoriteSongs.contains(song) ? musicManager.favoriteSongs : musicManager.recentSongs
+            SongDetailView(song: song, songQueue: queue)
+                .presentationDragIndicator(.visible)
         }
     }
 }
