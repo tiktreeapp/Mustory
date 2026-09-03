@@ -5,7 +5,8 @@ struct HomeView: View {
     let tabs = ["Recently", "Playlist"]
     @State private var musicManager = MusicManager.shared
     @State private var showSettings = false
-    
+    @State private var showPremium = false
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
@@ -33,9 +34,18 @@ struct HomeView: View {
                                 }
                             }
                         }
-                        
+
                         Spacer()
-                        
+
+                        // Premium Button
+                        Button {
+                            showPremium = true
+                        } label: {
+                            Text("👑")
+                                .font(.system(size: 22))
+                                .padding(.trailing, 8)
+                        }
+
                         // Settings Button
                         Button {
                             showSettings = true
@@ -49,18 +59,18 @@ struct HomeView: View {
                     .padding(.bottom, 10)
                     .padding(.horizontal, 20)
                     .background(Color(UIColor.systemBackground))
-                    
+
                     // Main Content
                     TabView(selection: $selectedTab) {
                         RecentView()
                             .tag("Recently")
-                        
+
                         PlaylistListView()
                             .tag("Playlist")
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                 }
-                
+
                 // Floating Bottom Player Bar
                 MusicPlayerBar()
                     .padding(.bottom, 10)
@@ -70,6 +80,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showPremium) {
+                PremiumView()
             }
         }
     }

@@ -4,11 +4,58 @@ import StoreKit
 
 struct SettingsView: View {
     @State private var musicManager = MusicManager.shared
+    @State private var showPremium = false
     @Environment(\.dismiss) var dismiss
-    
+
     var body: some View {
         NavigationStack {
             List {
+                // MARK: - About Header
+                Section {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Text("Mustory")
+                                .font(.system(size: 24, weight: .bold, design: .rounded))
+                            Text("Know the Story. Feel the Music.")
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                // MARK: - Premium
+                Section {
+                    Button {
+                        showPremium = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "crown.fill")
+                                .font(.title2)
+                                .foregroundColor(.orange)
+                                .frame(width: 36)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Premium")
+                                    .font(.headline)
+                                    .foregroundColor(.orange)
+                                Text("Unlock full music stories & flowing emojis")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+
                 // MARK: - Apple Music Connection
                 Section {
                     Button {
@@ -19,7 +66,7 @@ struct SettingsView: View {
                                 .font(.title2)
                                 .foregroundColor(.pink)
                                 .frame(width: 36)
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Apple Music")
                                     .font(.headline)
@@ -28,9 +75,9 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(connectionStatusColor)
                             }
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
@@ -44,7 +91,7 @@ struct SettingsView: View {
                         Text("Tap to authorize Mustory to access your Apple Music library.")
                     }
                 }
-                
+
                 // MARK: - Share & Review
                 Section {
                     // Share Music Story
@@ -56,7 +103,7 @@ struct SettingsView: View {
                                 .font(.title2)
                                 .foregroundColor(.blue)
                                 .frame(width: 36)
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Share Music Story")
                                     .font(.headline)
@@ -65,16 +112,16 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                         }
                         .padding(.vertical, 4)
                     }
-                    
+
                     // Review Mustory
                     Button {
                         reviewMustory()
@@ -84,7 +131,7 @@ struct SettingsView: View {
                                 .font(.title2)
                                 .foregroundColor(.orange)
                                 .frame(width: 36)
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Review Mustory")
                                     .font(.headline)
@@ -93,9 +140,9 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
@@ -105,7 +152,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Community")
                 }
-                
+
                 // MARK: - Legal
                 Section {
                     // Terms of Service
@@ -119,20 +166,20 @@ struct SettingsView: View {
                                 .font(.title2)
                                 .foregroundColor(.gray)
                                 .frame(width: 36)
-                            
+
                             Text("Terms of Service")
                                 .font(.headline)
                                 .foregroundColor(.primary)
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                         }
                         .padding(.vertical, 4)
                     }
-                    
+
                     // Privacy Policy
                     Button {
                         if let url = URL(string: "https://docs.qq.com/doc/DZnFhVnNIeWVSTG1O") {
@@ -144,13 +191,13 @@ struct SettingsView: View {
                                 .font(.title2)
                                 .foregroundColor(.gray)
                                 .frame(width: 36)
-                            
+
                             Text("Privacy Policy")
                                 .font(.headline)
                                 .foregroundColor(.primary)
-                            
+
                             Spacer()
-                            
+
                             Image(systemName: "chevron.right")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
@@ -160,22 +207,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Legal")
                 }
-                
-                // MARK: - About
-                Section {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Text("Mustory")
-                                .font(.headline)
-                            Text("Know the Story. Feel the Music.")
-                                .font(.system(size: 15))
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 8)
-                }
+
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -190,8 +222,11 @@ struct SettingsView: View {
         .task {
             await musicManager.refreshAuthorizationStatus()
         }
+        .sheet(isPresented: $showPremium) {
+            PremiumView()
+        }
     }
-    
+
     private var connectionStatusText: String {
         switch musicManager.authorizationStatus {
         case .authorized: return "Connected"
@@ -201,7 +236,7 @@ struct SettingsView: View {
         @unknown default: return "Unknown"
         }
     }
-    
+
     private var connectionStatusColor: Color {
         switch musicManager.authorizationStatus {
         case .authorized: return .green
@@ -209,13 +244,13 @@ struct SettingsView: View {
         default: return .orange
         }
     }
-    
+
     private func openAppleMusic() {
         if let url = URL(string: "music://") {
             UIApplication.shared.open(url)
         }
     }
-    
+
     private func shareMustory() {
         let shareText = "Know the story, Feel the Music by Mustory https://apps.apple.com/app/mustory-play-favorite-music/id6759556508"
         let activityVC = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
@@ -224,7 +259,7 @@ struct SettingsView: View {
             rootVC.present(activityVC, animated: true)
         }
     }
-    
+
     private func reviewMustory() {
         if let url = URL(string: "https://apps.apple.com/app/id6759556508?action=write-review") {
             UIApplication.shared.open(url)

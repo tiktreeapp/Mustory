@@ -3,7 +3,7 @@ import MusicKit
 
 struct MusicPlayerBar: View {
     @State private var musicManager = MusicManager.shared
-    @State private var showDetail = false
+    @State private var selectedSong: MusicKit.Song?
     
     var body: some View {
         HStack(spacing: 12) {
@@ -12,15 +12,11 @@ struct MusicPlayerBar: View {
                 if let entry = musicManager.currentEntry,
                    case .song(let song) = entry.item {
                     Button {
-                        showDetail = true
+                        selectedSong = song
                     } label: {
                         leftContent
                     }
                     .buttonStyle(.plain)
-                    .sheet(isPresented: $showDetail) {
-                        SongDetailView(song: song, songQueue: [])
-                            .presentationDragIndicator(.visible)
-                    }
                 } else {
                     leftContent
                 }
@@ -66,6 +62,10 @@ struct MusicPlayerBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .sheet(item: $selectedSong) { song in
+            SongDetailView(song: song, songQueue: [], shouldStartPlayback: false)
+                .presentationDragIndicator(.visible)
+        }
     }
     
     private var leftContent: some View {

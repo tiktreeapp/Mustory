@@ -14,10 +14,10 @@ struct FallingEmojiData: Identifiable {
 
 struct FallingEmojiView: View {
     let emojiData: FallingEmojiData
-    
+
     @State private var y: CGFloat = -40
     @State private var opacity: Double = 0.6 // 彻底确保只有 60%
-    
+
     var body: some View {
         Text(emojiData.emoji)
             .font(.system(size: 32 * emojiData.scale))
@@ -29,7 +29,7 @@ struct FallingEmojiView: View {
                     withAnimation(.linear(duration: 12.0)) {
                         y = UIScreen.main.bounds.height + 100
                     }
-                    
+
                     // 最后 2 秒渐隐
                     withAnimation(.easeOut(duration: 2.0).delay(10.0)) {
                         opacity = 0
@@ -43,22 +43,29 @@ struct FallingEmojiView: View {
 struct SongDetailView: View {
     let song: MusicKit.Song
     var songQueue: [MusicKit.Song] = []
-    
+    var shouldStartPlayback = true
+
     @State private var currentSong: MusicKit.Song
     @State private var musicManager = MusicManager.shared
+    @State private var storeManager = StoreManager.shared
     @State private var aiStory: StepAIManager.SongInfo = StepAIManager.SongInfo()
     @State private var isLoadingAI = true
     @State private var scrollOffset: CGFloat = 0
     @State private var fallingEmojis: [FallingEmojiData] = []
-    
+    @State private var showPremium = false
+    @State private var isLocked = false
+    @State private var aiStoryKey: String?
+    @State private var aiRequestKey: String?
+
     @Environment(\.dismiss) var dismiss
-    
-    init(song: MusicKit.Song, songQueue: [MusicKit.Song] = []) {
+
+    init(song: MusicKit.Song, songQueue: [MusicKit.Song] = [], shouldStartPlayback: Bool = true) {
         self.song = song
         self.songQueue = songQueue
+        self.shouldStartPlayback = shouldStartPlayback
         self._currentSong = State(initialValue: song)
     }
-    
+
     var body: some View {
         ZStack {
             // Background
@@ -76,29 +83,29 @@ struct SongDetailView: View {
                 )
             }
             .ignoresSafeArea()
-            
+
             ScrollView {
-                VStack(spacing: 8) { 
+                VStack(spacing: 8) {
                     // Geometry Tracker for Scroll Offset
                     GeometryReader { proxy in
                         let minY = proxy.frame(in: .global).minY
                         Color.clear.preference(key: ScrollOffsetKey.self, value: minY)
                     }
                     .frame(height: 0)
-                    
+
                     // 1. Top Artwork (Scaling)
                     if let artwork = currentSong.artwork {
                         let scale = max(0.5, 1.0 - (scrollOffset < 50 ? (50 - scrollOffset) / 500.0 : 0))
-                        
+
                         ArtworkImage(artwork, width: 260, height: 260)
                             .cornerRadius(12 * scale)
                             .shadow(color: .black.opacity(0.4), radius: 15 * scale, x: 0, y: 8 * scale)
                             .scaleEffect(scale)
                             .padding(.top, 150) // Spacing slightly adjusted
-                            .padding(.bottom, 8) 
+                            .padding(.bottom, 8)
                             .animation(.spring(), value: scale)
                     }
-                    
+
                     // 2. Song & Artist Name
                     VStack(spacing: 4) {
                         Text(currentSong.title)
@@ -106,14 +113,14 @@ struct SongDetailView: View {
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .lineLimit(1)
-                        
+
                         Text(currentSong.artistName)
                             .font(.system(size: 16))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                     }
                     .padding(.horizontal, 24)
-                    
+
                     // 3. Player Controls - 宽度对齐
                     HStack {
                         Button(action: { musicManager.toggleFavorite(currentSong) }) {
@@ -124,18 +131,18 @@ struct SongDetailView: View {
                                 .background(Color.white.opacity(0.1))
                                 .clipShape(Circle())
                         }
-                        
+
                         Spacer()
-                        
+
                         Button(action: { musicManager.previous() }) {
                             Image(systemName: "backward.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(.white)
                                 .padding(10)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button(action: { musicManager.togglePlayback() }) {
                             Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 36))
@@ -143,18 +150,18 @@ struct SongDetailView: View {
                                 .frame(width: 40)
                                 .padding(10)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button(action: { musicManager.next() }) {
                             Image(systemName: "forward.fill")
                                 .font(.system(size: 24))
                                 .foregroundColor(.white)
                                 .padding(10)
                         }
-                        
+
                         Spacer()
-                        
+
                         Button(action: { shareSong() }) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 20))
@@ -166,7 +173,7 @@ struct SongDetailView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 8)
-                    
+
                     // 4. Metadata
                     HStack(alignment: .top, spacing: 16) {
                         MetadataBlock(label: "Album", value: currentSong.albumTitle ?? "Unknown")
@@ -177,17 +184,25 @@ struct SongDetailView: View {
                             .frame(width: 90, alignment: .leading)
                     }
                     .padding(.horizontal, 24)
-                    
+
                     // 5. AI Sections
                     VStack(alignment: .leading, spacing: 25) {
-                        if !aiStory.sceneMood.isEmpty || isLoadingAI {
-                            SceneMoodSection(content: aiStory.sceneMood, isLoading: isLoadingAI)
-                                .padding(.top, 12) // 增加了 Top 数值 12 像素
+                        if !aiStory.sceneMood.isEmpty || isLoadingAI || isLocked {
+                            SceneMoodSection(content: aiStory.sceneMood, isLoading: isLoadingAI, isLocked: isLocked) {
+                                showPremium = true
+                            }
+                            .padding(.top, 12)
                         }
-                        
-                        StorySection(title: "Background", content: aiStory.background, isLoading: isLoadingAI)
-                        StorySection(title: "Written for", content: aiStory.writtenFor, isLoading: isLoadingAI)
-                        StorySection(title: "What Happening", content: aiStory.whatHappening, isLoading: isLoadingAI)
+
+                        StorySection(title: "Background", content: aiStory.background, isLoading: isLoadingAI, isLocked: isLocked) {
+                            showPremium = true
+                        }
+                        StorySection(title: "Written for", content: aiStory.writtenFor, isLoading: isLoadingAI, isLocked: isLocked) {
+                            showPremium = true
+                        }
+                        StorySection(title: "What Happening", content: aiStory.whatHappening, isLoading: isLoadingAI, isLocked: isLocked) {
+                            showPremium = true
+                        }
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 200)
@@ -203,7 +218,7 @@ struct SongDetailView: View {
                 }
                 scrollOffset = value
             }
-            
+
             // Custom Pull bar indicator (Should stay on top)
             VStack {
                 RoundedRectangle(cornerRadius: 2.5)
@@ -213,7 +228,7 @@ struct SongDetailView: View {
                     .padding(.bottom, 0)
                 Spacer()
             }
-            
+
             // ✅ Falling Emojis layer (Top-most inside ZStack, NOT overlay)
             ZStack {
                 ForEach(fallingEmojis) { emojiData in
@@ -224,45 +239,133 @@ struct SongDetailView: View {
             .ignoresSafeArea()
             .allowsHitTesting(false)
         }
+        .sheet(isPresented: $showPremium) {
+            PremiumView()
+        }
         .task {
-            // Initial play
-            if songQueue.isEmpty {
-                musicManager.play(song)
-            } else {
-                musicManager.playSongInContext(song: song, queue: songQueue)
+            if shouldStartPlayback {
+                // Initial play
+                if songQueue.isEmpty {
+                    musicManager.play(song)
+                } else {
+                    musicManager.playSongInContext(song: song, queue: songQueue)
+                }
             }
-            await fetchAIStory()
-            
+
+            checkSongLimit() // 检查免费额度
+
+            if !isLocked {
+                await fetchAIStory()
+            }
+
             // Sync current song with music manager
-            for await entry in NotificationCenter.default.publisher(for: .MPMusicPlayerControllerNowPlayingItemDidChange).values {
+            for await _ in NotificationCenter.default.publisher(for: .MPMusicPlayerControllerNowPlayingItemDidChange).values {
                 if let newEntry = musicManager.currentEntry,
                    case .song(let newSong) = newEntry.item {
                     await MainActor.run {
                         self.currentSong = newSong
-                        Task { await fetchAIStory() }
+                        checkSongLimit()
+                        if !isLocked {
+                            Task { await fetchAIStory() }
+                        } else {
+                            // 清空之前缓存的内容避免展示旧数据
+                            aiStory = StepAIManager.SongInfo()
+                            aiStoryKey = nil
+                            aiRequestKey = nil
+                        }
                     }
                 }
             }
         }
         .navigationBarHidden(true)
+        .onChange(of: storeManager.isPremium) { old, newValue in
+            if newValue {
+                // 用户购买成功
+                isLocked = false
+                Task {
+                    await fetchAIStory() // 立即加载 AI 内容
+                }
+            }
+        }
     }
-    
+
+    private func checkSongLimit() {
+        // 如果已经是 Premium，永不锁定
+        if StoreManager.shared.isPremium {
+            isLocked = false
+            return
+        }
+
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10) // YYYY-MM-DD
+        let key = "DailySongViews_\(today)"
+
+        var viewedSongs = UserDefaults.standard.stringArray(forKey: key) ?? []
+
+        // 检查该歌曲是否已在当日额度内（通过 ID 识别）
+        if viewedSongs.contains(currentSong.id.rawValue) {
+            isLocked = false
+        } else {
+            // 第 3 首开始锁定
+            if viewedSongs.count >= 2 {
+                isLocked = true
+            } else {
+                isLocked = false
+                // 将新歌曲计入额度
+                viewedSongs.append(currentSong.id.rawValue)
+                UserDefaults.standard.set(viewedSongs, forKey: key)
+            }
+        }
+    }
+
     private func fetchAIStory() async {
+        let requestKey = StepAIManager.shared.cacheKey(
+            songId: currentSong.id.rawValue,
+            songName: currentSong.title,
+            artistName: currentSong.artistName
+        )
+
+        if aiStoryKey == requestKey {
+            return
+        }
+
+        if aiRequestKey == requestKey {
+            return
+        }
+
+        if let cachedInfo = StepAIManager.shared.cachedSongStory(
+            songId: currentSong.id.rawValue,
+            songName: currentSong.title,
+            artistName: currentSong.artistName
+        ) {
+            aiStory = cachedInfo
+            aiStoryKey = requestKey
+            isLoadingAI = false
+            triggerEmojiAnimation()
+            return
+        }
+
+        aiRequestKey = requestKey
         isLoadingAI = true
-        let result = await StepAIManager.shared.fetchSongStory(songName: currentSong.title, artistName: currentSong.artistName)
-        
+        let result = await StepAIManager.shared.fetchSongStory(
+            songId: currentSong.id.rawValue,
+            songName: currentSong.title,
+            artistName: currentSong.artistName
+        )
+
         await MainActor.run {
             aiStory = result
+            aiStoryKey = requestKey
+            aiRequestKey = nil
             isLoadingAI = false
-            
+
             // ✅ 强制触发（无论场景有没有文字内容，立刻产生兜底特效）
             print("🔥 fetchAIStory fetched end. Triggering Emoji Animation")
             triggerEmojiAnimation()
         }
     }
-    
+
     @State private var lastAnimationTimestamp: Date = Date.distantPast
-    
+
     private func triggerEmojiAnimation() {
         guard Date().timeIntervalSince(lastAnimationTimestamp) > 0.6 else {
             print("🔥 triggerEmojiAnimation throttled!")
@@ -270,37 +373,37 @@ struct SongDetailView: View {
         }
         lastAnimationTimestamp = Date()
         print("🔥 triggerEmojiAnimation started!")
-        
+
         let foodEmojis = ["☕️", "🍷", "🍰", "🍔", "🍕", "🍦", "🍓", "🍺", "🍵", "🍎"]
         let animalEmojis = ["🐱", "🐶", "🐦", "🦋", "🐰", "🐻", "🐟", "🐢", "🦊", "🐬"]
         let activityEmojis = ["📖", "🎬", "🎮", "🚴‍♂️", "🚶", "🏃‍♂️", "🎨", "⛺️", "🎧", "📷"]
-        
+
         let foundEmojis = EmojiManager.findEmojis(in: aiStory.sceneMood)
         var contextualEmojis = foundEmojis
-        
+
         // 1. 获取基础表情（如果有匹配，混入默认✨🎵；如果没匹配，用兜底库）
         if contextualEmojis.isEmpty {
             contextualEmojis = ["✨", "🎵", "🎶", "🎈", "🌟", "🍂", "🍃", "🌸"]
         } else {
-            contextualEmojis.append(contentsOf: ["✨", "🎵"]) 
+            contextualEmojis.append(contentsOf: ["✨", "🎵"])
         }
-        
+
         contextualEmojis.shuffle()
-        
+
         // 2. 组装最终要掉落的表情库
         var emojisToDrop: [String] = []
         emojisToDrop.append(contentsOf: contextualEmojis.prefix(3)) // 选前3个意境/默认
-        
+
         // 3. 增加三个新维度的随机表情
         if let food = foodEmojis.randomElement() { emojisToDrop.append(food) }
         if let animal = animalEmojis.randomElement() { emojisToDrop.append(animal) }
         if let activity = activityEmojis.randomElement() { emojisToDrop.append(activity) }
-        
+
         // 打乱最终这 6 个表情的掉落顺序
         emojisToDrop.shuffle()
-        
+
         let screenWidth = UIScreen.main.bounds.width
-        
+
         for (i, emojiStr) in emojisToDrop.enumerated() {
             let newEmoji = FallingEmojiData(
                 emoji: emojiStr,
@@ -308,48 +411,48 @@ struct SongDetailView: View {
                 scale: CGFloat.random(in: 1.0...2.0), // 缩放比例
                 delay: Double(i) * 1.5 // 掉落间隔拉长到 1.5 秒一个，非常舒缓
             )
-            
+
             fallingEmojis.append(newEmoji)
         }
         print("🔥 Emojis appended, count is now: \(fallingEmojis.count)")
-        
+
         // 清理越界的旧元素，保持性能
         if fallingEmojis.count > 15 {
             fallingEmojis.removeFirst(fallingEmojis.count - 15)
         }
     }
-    
+
     private func shareSong() {
         let shareText = "Know the story, Feel the Music by Mustory https://apps.apple.com/app/mustory-play-favorite-music/id6759556508"
         var items: [Any] = [shareText]
         if let url = currentSong.url {
             items.append(url)
         }
-        
+
         let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        
+
         // 寻找最顶层的 ViewController
         if let keyWindow = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .flatMap({ $0.windows })
             .first(where: { $0.isKeyWindow }),
            var topController = keyWindow.rootViewController {
-            
+
             while let presentedViewController = topController.presentedViewController {
                 topController = presentedViewController
             }
-            
+
             // 如果是 iPad，需要配置 popoverPresentationController
             if let popover = activityVC.popoverPresentationController {
                 popover.sourceView = topController.view
                 popover.sourceRect = CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 0, height: 0)
                 popover.permittedArrowDirections = []
             }
-            
+
             topController.present(activityVC, animated: true)
         }
     }
-    
+
     // ... helpers formatDuration, formatDate remain same ...
     private func formatDuration(_ duration: TimeInterval?) -> String {
         guard let duration = duration else { return "00:00" }
@@ -357,7 +460,7 @@ struct SongDetailView: View {
         let seconds = Int(duration) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
-    
+
     private func formatDate(_ date: Date?) -> String {
         guard let date = date else { return "Unknown" }
         let formatter = DateFormatter()
@@ -376,7 +479,7 @@ struct ScrollOffsetKey: PreferenceKey {
 struct MetadataBlock: View {
     let label: String
     let value: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
@@ -395,27 +498,48 @@ struct StorySection: View {
     let title: String
     let content: String
     let isLoading: Bool
-    
+    let isLocked: Bool
+    var onUnlock: () -> Void = {}
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(.white)
-            
-            if isLoading {
-                HStack {
-                    ProgressView()
-                        .tint(.white)
-                    Spacer()
+
+            ZStack {
+                VStack(alignment: .leading, spacing: 10) {
+                    if isLoading && !isLocked {
+                        HStack {
+                            ProgressView().tint(.white)
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                    } else {
+                        // 锁定状态显示 5 行左右的占位文本并模糊
+                        Text(isLocked ? "Premium users can unlock more deep music stories. Premium users can unlock more deep music stories. Premium users can unlock more deep music stories. Premium users can unlock more deep music stories." : content)
+                            .font(.system(size: 17))
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineSpacing(7)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .blur(radius: isLocked ? 12 : 0)
+                    }
                 }
-                .padding(.vertical, 8)
-            } else {
-                Text(content)
-                    .font(.system(size: 17))
-                    .foregroundColor(.white.opacity(0.9))
-                    .lineSpacing(7)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isLocked {
+                    Button(action: onUnlock) {
+                        HStack {
+                            Text("Unlock with 👑 Premium")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.pink)
+                        .cornerRadius(20)
+                    }
+                }
             }
         }
     }
@@ -424,7 +548,9 @@ struct StorySection: View {
 struct SceneMoodSection: View {
     let content: String
     let isLoading: Bool
-    
+    let isLocked: Bool
+    var onUnlock: () -> Void = {}
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
@@ -435,27 +561,42 @@ struct SceneMoodSection: View {
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
             }
-            
-            if isLoading {
-                HStack {
-                    ProgressView()
-                        .tint(.white)
-                    Spacer()
+
+            ZStack {
+                if isLoading && !isLocked {
+                    HStack {
+                        ProgressView().tint(.white)
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    Text(isLocked ? "Premium members enjoy cinematic scene interpretations of every song mood. Unlock it now to see more." : content)
+                        .font(.system(size: 17))
+                        .italic()
+                        .foregroundColor(.white.opacity(0.85))
+                        .lineSpacing(7)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color.white.opacity(0.08))
+                        .cornerRadius(12)
+                        .blur(radius: isLocked ? 12 : 0)
                 }
-                .padding(.vertical, 8)
-            } else {
-                Text(content)
-                    .font(.system(size: 17))
-                    .italic()
-                    .foregroundColor(.white.opacity(0.85))
-                    .lineSpacing(7)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(Color.white.opacity(0.08))
-                    .cornerRadius(12)
+
+                if isLocked {
+                    Button(action: onUnlock) {
+                        HStack {
+                            Text("Unlock with 👑 Premium")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.pink)
+                        .cornerRadius(20)
+                    }
+                }
             }
         }
     }
 }
-
